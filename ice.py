@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import os
 import sys
@@ -7,11 +5,11 @@ import multiprocessing
 import random
 from itertools import product, repeat
 from dataclasses import dataclass
-from typing import List
+from typing import List, Self
 
 @dataclass
 class Ice:
-    adjacents: List[Ice]
+    adjacents: List[Self]
     # Any adjacents to a border or frozen has a chance to be frozen
     border: bool = False
     frozen: bool = False
