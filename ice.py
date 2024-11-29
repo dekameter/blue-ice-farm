@@ -5,11 +5,11 @@ import multiprocessing
 import random
 from itertools import product, repeat
 from dataclasses import dataclass
-from typing import List, Self
+from typing import Self
 
 @dataclass
 class Ice:
-    adjacents: List[Self]
+    adjacents: list[Self]
     # Any adjacents to a border or frozen has a chance to be frozen
     border: bool = False
     frozen: bool = False
