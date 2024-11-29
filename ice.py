@@ -211,12 +211,14 @@ Copyright (c) 2021 Dekameter <dekameter@giant.ink>
 
 This work is licensed under the terms of the Artistic License 2.0.
 For a copy, see <https://opensource.org/license/artistic-2-0>.
-""",
+"""
     )
     parser.add_argument(
         "-s", "--size", default=7, type=int,
-        help=(f"The size to test against, or if '--increment' is set, run up to this size. Cannot"
-              f" be below {MIN_SIZE}, and defaults to 7.")
+        help=(
+            f"The size to test against, or if '--increment' is set, run up to this size. Cannot"
+            f" be below {MIN_SIZE}, and defaults to 7."
+        )
     )
     parser.add_argument(
         "-i", "--increment", action="store_true",
