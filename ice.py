@@ -238,7 +238,7 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
     if max_size < MIN_SIZE:
         raise ValueError(f"Size must be at least {MIN_SIZE}.")
 
-    sizes = range(MIN_SIZE, 27 if increment else max_size, max_size + 1)
+    sizes = range(MIN_SIZE if increment else max_size, max_size + 1)
 
     for size in sizes:
         # If we're running in debug mode, we don't want multiprocessing, and only do one run for
