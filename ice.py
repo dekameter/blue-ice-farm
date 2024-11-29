@@ -125,7 +125,7 @@ def update_screen(size: int, farm: IceFarm, ticks: int):
     print(size, farm.count(), farm.get_eff_yield(), ticks)
 
 
-def simulate_generation(size: int, debug: bool = False) -> int:
+def simulate_generation(size: int, debug: bool = False, cutoff_ratio: float = 1.0) -> int:
     farm = IceFarm(size)
     eff_yield = farm.get_eff_yield()
     ticks = 0
@@ -134,8 +134,7 @@ def simulate_generation(size: int, debug: bool = False) -> int:
         update_screen(size, farm, ticks)
 
     last_count = curr_count = farm.count()
-    while curr_count < eff_yield * 0.9:
-    # while curr_count < eff_yield:
+    while curr_count < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
         curr_count = farm.count()
@@ -221,6 +220,11 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
         )
     )
     parser.add_argument(
+        "-c", "--cutoff", default=1.0, type=float,
+        help="""
+Set a percentage to cutoff from 0.0 to 1.0. Defaults to 1.0 (aka. every block is filled).
+""")
+    parser.add_argument(
         "-i", "--increment", action="store_true",
         help="Increments starting at a size of 3 up to '--size' set.")
     parser.add_argument(
@@ -232,11 +236,15 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
     args = parser.parse_args()
 
     max_size = args.size
+    cutoff_ratio = args.cutoff
     increment = args.increment
     debug = args.debug
 
     if max_size < MIN_SIZE:
-        raise ValueError(f"Size must be at least {MIN_SIZE}.")
+        raise ValueError(f"--size must be at least {MIN_SIZE}.")
+
+    if cutoff_ratio < 0.0 or cutoff_ratio > 1.0:
+        raise ValueError("--cutoff must be inclusively between 0.0 and 1.0.")
 
     sizes = range(MIN_SIZE if increment else max_size, max_size + 1)
 
@@ -244,7 +252,7 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
         # If we're running in debug mode, we don't want multiprocessing, and only do one run for
         # each
         if debug:
-            simulate_generation(size, debug)
+            simulate_generation(size, debug, cutoff_ratio)
         else:
             with multiprocessing.Pool() as pool:
                 runs = list(pool.imap_unordered(simulate_generation, repeat(size, RUN_COUNT)))
