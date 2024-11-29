@@ -186,7 +186,7 @@ WEATHER_UPDATE_CHANCE = 1 / 16
 RUN_COUNT = 1000
 MIN_SIZE = 3
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(
         description="""
 Simulates the generation of a Minecraft ice farm and outputs a comma-separated line for each size, minimum duration,
@@ -234,3 +234,7 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
         #     moments = list(map(lambda x: sum(x) / len(x), zip(*runs)))
 
         # print("{},{}".format(size, ",".join(str(moment) for moment in moments)))
+
+
+if __name__ == "__main__":
+    main()
