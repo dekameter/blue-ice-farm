@@ -18,13 +18,13 @@ class Ice:
 
     def __str__(self):
         if self.border:
-            return 'X'
+            return "X"
         if self.blocked:
-            return 'W'
+            return "W"
         if self.frozen:
-            return '\u2588'
+            return "\u2588"
 
-        return '\u2591'
+        return "\u2591"
 
 
 class IceFarm:
@@ -61,10 +61,10 @@ class IceFarm:
 
     def print_adjacency(self):
         for row in self._grid:
-            print(' '.join('X' if cell.border else str(len(cell.adjacents)) for cell in row))
+            print(" ".join("X" if cell.border else str(len(cell.adjacents)) for cell in row))
 
     def __str__(self):
-        return '\n'.join(' '.join(str(cell) for cell in row) for row in self._grid)
+        return "\n".join(" ".join(str(cell) for cell in row) for row in self._grid)
 
     def update(self):
         # Treat the grid layout as Minecraft chunks, where each chunk has an independent weather
@@ -116,7 +116,7 @@ class IceFarm:
 
 
 def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def update_screen(size: int, farm: IceFarm, ticks: int):
@@ -258,7 +258,7 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
         #     runs = list(pool.imap_unordered(sim_gen_moments, repeat(size, RUN_COUNT)))
         #     moments = list(map(lambda x: sum(x) / len(x), zip(*runs)))
 
-        # print(f"{size},{','.join(str(moment) for moment in moments)}")
+        # print(f"{size},{",".join(str(moment) for moment in moments)}")
 
 
 if __name__ == "__main__":
