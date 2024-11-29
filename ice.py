@@ -108,7 +108,7 @@ class IceFarm:
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def update_screen(farm: IceFarm, ticks: int):
+def update_screen(size: int, farm: IceFarm, ticks: int):
     clear_screen()
     print(farm)
     print(size, farm.count(), farm.get_eff_yield(), ticks)
@@ -120,7 +120,7 @@ def simulate_generation(size: int, debug: bool = False) -> int:
     ticks = 0
 
     if debug:
-        update_screen(farm, ticks)
+        update_screen(size, farm, ticks)
 
     last_count = curr_count = farm.count()
     while curr_count < eff_yield * 0.9:
@@ -131,7 +131,7 @@ def simulate_generation(size: int, debug: bool = False) -> int:
 
         if debug and curr_count > last_count:
             last_count = curr_count
-            update_screen(farm, ticks)
+            update_screen(size, farm, ticks)
     
     return ticks
 
