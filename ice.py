@@ -141,7 +141,7 @@ def simulate_center(size: int, debug: bool = False) -> int:
     ticks = 0
 
     if debug:
-        update_screen(farm, ticks)
+        update_screen(size, farm, ticks)
 
     last_count = curr_count = farm.count()
     while curr_count < eff_yield:
@@ -151,7 +151,7 @@ def simulate_center(size: int, debug: bool = False) -> int:
 
         if debug and curr_count > last_count:
             last_count = curr_count
-            update_screen(farm, ticks)
+            update_screen(size, farm, ticks)
         
         if farm.center_touched():
             return farm.count() / farm.get_eff_yield()
