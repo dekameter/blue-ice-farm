@@ -7,6 +7,10 @@ from itertools import product, repeat
 from dataclasses import dataclass
 from typing import Self
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
+
 @dataclass
 class Ice:
     adjacents: list[Self]
@@ -125,7 +129,7 @@ def update_screen(size: int, farm: IceFarm, ticks: int):
     print(size, farm.count(), farm.get_eff_yield(), ticks)
 
 
-def simulate_generation(size: int, debug: bool = False, cutoff_ratio: float = 1.0) -> int:
+def simulate_generation(size: int, cutoff_ratio: float = 1.0, debug: bool = False) -> int:
     farm = IceFarm(size)
     eff_yield = farm.get_eff_yield()
     ticks = 0
@@ -146,7 +150,7 @@ def simulate_generation(size: int, debug: bool = False, cutoff_ratio: float = 1.
     return ticks
 
 
-def simulate_center(size: int, debug: bool = False) -> int:
+def simulate_center(size: int, cutoff_ratio: float = 1.0, debug: bool = False) -> int:
     farm = IceFarm(size)
     eff_yield = farm.get_eff_yield()
     ticks = 0
@@ -155,7 +159,7 @@ def simulate_center(size: int, debug: bool = False) -> int:
         update_screen(size, farm, ticks)
 
     last_count = curr_count = farm.count()
-    while curr_count < eff_yield:
+    while curr_count < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
         curr_count = farm.count()
@@ -170,14 +174,14 @@ def simulate_center(size: int, debug: bool = False) -> int:
     return farm.count() / farm.get_eff_yield()
 
 
-def sim_gen_moments(size: int) -> list[int]:
+def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
     farm = IceFarm(size)
     eff_yield = farm.get_eff_yield()
     ticks = 0
     moments = []
 
     last_count = curr_count = farm.count()
-    while curr_count < eff_yield:
+    while curr_count < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
         curr_count = farm.count()
@@ -188,12 +192,10 @@ def sim_gen_moments(size: int) -> list[int]:
 
     return [moment / ticks for moment in moments]
 
-# Print the field size, min, max, average, and median tick runtime
-
 CHUNK_SIZE = 16
 # Each block has a 1 in 16th chance of being weather updated
 WEATHER_UPDATE_CHANCE = 1 / 16
-RUN_COUNT = 1000
+RUN_COUNT = 10
 MIN_SIZE = 3
 
 def main():
@@ -215,22 +217,33 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
     parser.add_argument(
         "-s", "--size", default=7, type=int,
         help=(
-            f"The size to test against, or if '--increment' is set, run up to this size. Cannot"
-            f" be below {MIN_SIZE}, and defaults to 7."
+            f"The size to test against, or if '--increment' is set,"
+            f" run up to this size. Cannot be below {MIN_SIZE}, and"
+            f" defaults to 7."
         )
     )
     parser.add_argument(
         "-c", "--cutoff", default=1.0, type=float,
         help="""
-Set a percentage to cutoff from 0.0 to 1.0. Defaults to 1.0 (aka. every block is filled).
+Set a percentage to cutoff from 0.0 to 1.0. Defaults to 1.0 (aka. every
+block is filled).
 """)
     parser.add_argument(
         "-i", "--increment", action="store_true",
         help="Increments starting at a size of 3 up to '--size' set.")
     parser.add_argument(
+        "-m", "--moment", action="store_true",
+        help="""
+Instead of the standard mode, computes the average time taken for each
+increasing yield. After every size is simulated, it will then plot each
+size with percentage of yield vs. percentage of time taken 
+"""
+    )
+    parser.add_argument(
         "-d", "--debug", action="store_true",
         help="""
-Run in debug mode, where the farm will be printed instead, and no parallelism is done.
+Run in debug mode, where the farm will be printed instead, and no
+parallelism is done.
 """)
 
     args = parser.parse_args()
@@ -238,6 +251,7 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
     max_size = args.size
     cutoff_ratio = args.cutoff
     increment = args.increment
+    moment_mode = args.moment
     debug = args.debug
 
     if max_size < MIN_SIZE:
@@ -247,27 +261,68 @@ Run in debug mode, where the farm will be printed instead, and no parallelism is
         raise ValueError("--cutoff must be inclusively between 0.0 and 1.0.")
 
     sizes = range(MIN_SIZE if increment else max_size, max_size + 1)
+    if moment_mode:
+        time_ratios = []
 
     for size in sizes:
         # If we're running in debug mode, we don't want multiprocessing, and only do one run for
         # each
         if debug:
-            simulate_generation(size, debug, cutoff_ratio)
+            simulate_generation(size, cutoff_ratio, debug)
+        elif moment_mode:
+            with multiprocessing.Pool() as pool:
+                runs = list(pool.starmap(
+                    sim_gen_moments,
+                    zip(repeat(size, RUN_COUNT), repeat(cutoff_ratio, RUN_COUNT))
+                ))
+                time_ratio = list(map(lambda x: sum(x) / len(x), zip(*runs)))
+                time_ratios.append(time_ratio)
         else:
             with multiprocessing.Pool() as pool:
-                runs = list(pool.imap_unordered(simulate_generation, repeat(size, RUN_COUNT)))
+                runs = list(pool.starmap(
+                    simulate_generation,
+                    zip(repeat(size, RUN_COUNT), repeat(cutoff_ratio, RUN_COUNT))
+                ))
 
+            # Print the field size, min, max, average, and median tick runtime
             print(
                 (f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
                  f",{list(sorted(runs))[len(runs) // 2]}")
             )
 
-        # with multiprocessing.Pool() as pool:
-        #     runs = list(pool.imap_unordered(sim_gen_moments, repeat(size, RUN_COUNT)))
-        #     moments = list(map(lambda x: sum(x) / len(x), zip(*runs)))
+    if moment_mode:
+        yield_ratios = []
+        for moments in time_ratios:
+            yield_ratio = [i / len(moments) for i in range(len(moments))]
+            yield_ratios.append(yield_ratio)
 
-        # print(f"{size},{",".join(str(moment) for moment in moments)}")
+        repeated_sizes = np.hstack([
+            list(repeat(size, len(ratio))) for size, ratio in zip(sizes, yield_ratios)
+        ])
+        time_ratios = np.hstack(time_ratios)
+        yield_ratios = np.hstack(yield_ratios)
 
+        df = pd.DataFrame.from_records({
+            "size": repeated_sizes,
+            "yield_ratio": yield_ratios,
+            "time_ratio": time_ratios
+        })
+
+        fig = px.line(
+            df, color="size", markers=True,
+            x="time_ratio", y="yield_ratio"
+        )
+        fig.update_layout(
+            xaxis = {
+                "title": "Time Passed (%)",
+                "tickformat": ",.1%"
+            },
+            yaxis = {
+                "title": "Yield (%)",
+                "tickformat": ",.1%"
+            }
+        )
+        fig.show()
 
 if __name__ == "__main__":
     main()

@@ -1,14 +1,24 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [project]
 name = "blue-ice-farm"
 description = "Simulates the generation of a Minecraft ice farm meant for the production of blue ice."
 authors = [
     {name = "Dekameter", email = "dekameter@giant.ink"}
 ]
+license = {file = "LICENSE.md"}
 classifiers = [
     "License :: OSI Approved :: Artistic License"
 ]
 requires-python = ">= 3.11"
 readme = "README.md"
+dependencies = [
+    "plotly",
+    "pandas",
+    "numpy"
+]
 
 [project.urls]
 homepage = "https://github.com/dekameter/blue-ice-sim"
@@ -21,3 +31,29 @@ ice = "ice:main"
 dev = [
     "pylint"
 ]
+
+[tool.poetry]
+name = "blue-ice-sim"
+version = "1.0.0"
+description = "Simulates the generation of a Minecraft ice farm meant for the production of blue ice."
+authors = ["Dekameter <dekameter@giant.ink>"]
+license = "Artistic-2.0"
+readme = "README.md"
+packages = [{include = "blue_ice_sim", from = "src"}]
+homepage = "https://github.com/dekameter/blue-ice-sim"
+repository = "https://github.com/dekameter/blue-ice-sim"
+
+[tool.poetry.urls]
+issues = "https://github.com/dekameter/blue-ice-sim/issues"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+plotly = "^5.24.1"
+pandas = "^2.2.3"
+numpy = "^2.1.3"
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^3.3.1"
+
+[tool.poetry.scripts]
+ice = 'blue_ice_sim.ice:main'
