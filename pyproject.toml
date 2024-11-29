@@ -1,0 +1,23 @@
+[project]
+name = "blue-ice-farm"
+description = "Simulates the generation of a Minecraft ice farm meant for the production of blue ice."
+authors = [
+    {name = "Dekameter", email = "dekameter@giant.ink"}
+]
+classifiers = [
+    "License :: OSI Approved :: Artistic License"
+]
+requires-python = ">= 3.9"
+readme = "README.md"
+
+[project.urls]
+homepage = "https://github.com/dekameter/blue-ice-sim"
+issues = "https://github.com/dekameter/blue-ice-sim/issues"
+
+[project.scripts]
+ice = "ice:main"
+
+[project.optional-dependencies]
+dev = [
+    "pylint"
+]
