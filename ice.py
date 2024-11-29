@@ -196,8 +196,8 @@ the water sources; otherwise, only a single diagnal is used.
         epilog="""
 Copyright (c) 2021 Dekameter <dekameter@giant.ink>
 
-This work is licensed under the terms of the MIT license.  
-For a copy, see <https://opensource.org/licenses/MIT>.
+This work is licensed under the terms of the Artistic License 2.0.  
+For a copy, see <https://opensource.org/license/artistic-2-0>.
 """,
     )
     parser.add_argument("-s", "--size", default=7, type=int,
