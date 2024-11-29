@@ -212,10 +212,10 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
     increment = args.increment
     debug = args.debug
 
-    if max_size < 3:
+    if max_size < MIN_SIZE:
         raise ValueError("Size must be at least {}.".format(MIN_SIZE))
 
-    sizes = range(27 if increment else max_size, max_size + 1)
+    sizes = range(MIN_SIZE, 27 if increment else max_size, max_size + 1)
 
     for size in sizes:
         # If we're running in debug mode, we don't want multiprocessing, and only do one run for each
