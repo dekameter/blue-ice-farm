@@ -12,7 +12,7 @@ license = {file = "LICENSE.md"}
 classifiers = [
     "License :: OSI Approved :: Artistic License"
 ]
-requires-python = ">= 3.11"
+requires-python = "^3.11"
 readme = "README.md"
 dependencies = [
     "plotly^5.24.1",
