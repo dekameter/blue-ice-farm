@@ -234,10 +234,11 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
     )
     parser.add_argument(
         "-r", "--run", default=DEFAULT_RUN_COUNT, type=int,
-        help="""
-Set a percentage to cutoff from 0.0 to 1.0. Defaults to 1.0 (aka. every
-block is filled).
-""")
+        help=(
+            f"Set how times to run the simulation for to more accurately determine the statistics."
+            f"Default to {DEFAULT_RUN_COUNT} runs."
+        )
+    )
     parser.add_argument(
         "-i", "--increment", action="store_true",
         help="Increments starting at a size of 3 up to '--size' set.")
