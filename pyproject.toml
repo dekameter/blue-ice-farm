@@ -4,6 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "blue-ice-farm"
+version = "1.0.0"
 description = "Simulates the generation of a Minecraft ice farm meant for the production of blue ice."
 authors = [
     {name = "Dekameter", email = "dekameter@giant.ink"}
