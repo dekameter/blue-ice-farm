@@ -1,10 +1,12 @@
 import argparse
+import functools
 import os
 import sys
 import multiprocessing
 import random
-from itertools import product, repeat
 from dataclasses import dataclass
+from itertools import product, repeat
+from pathlib import Path
 from typing import Self
 
 import numpy as np
@@ -37,6 +39,7 @@ class IceFarm:
             raise ValueError("Size must be positive.")
 
         self._size = size
+        self._eff_yield = self._get_eff_yield()
         # Ceiling divide
         self._chunk_count = size // CHUNK_SIZE + (0 if size % CHUNK_SIZE == 0 else 1)
         self._grid = [[Ice([]) for _ in range(size + 2)] for _ in range(size + 2)]
@@ -62,6 +65,14 @@ class IceFarm:
                 for x, y in [(i, j - 1), (i, j + 1), (i - 1, j), (i + 1, j)]:
                     if i != x or j != y:
                         self._grid[i][j].adjacents.append(self._grid[x][y])
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    @property
+    def eff_yield(self) -> int:
+        return self._eff_yield
 
     def print_adjacency(self):
         for row in self._grid:
@@ -91,17 +102,17 @@ class IceFarm:
         return sum(1 for i, j in product(range(self._size + 2), repeat=2)
                    if not self._grid[i][j].border and self._grid[i][j].frozen)
 
-    def get_eff_yield(self):
+    def _get_eff_yield(self):
         """
         The effective yield, the number of ice blocks that can exist.
         """
         eff_yield = self._size * (self._size - 1)
+        # For farms crater than 7, another diagonal must be used that shouldn't be count
         if self._size > 7:
             eff_yield -= self._size
             # If odd, avoid counting the center twice when using a cross pattern
             if self._size % 2 == 1:
                 eff_yield += 1
-
 
         return eff_yield
 
@@ -119,64 +130,75 @@ class IceFarm:
         )
 
 
-def clear_screen():
-    os.system("cls" if os.name == "nt" else "clear")
+class Screen:
+    def __init__(self, size: int, size_count: int, run_count: int, cutoff_ratio: float = 1.0):
+        self._farm = IceFarm(size)
+        self._size_count = size_count
+        self._run_count = run_count
+        self._total_runs = self._size_count * self._run_count
+        self._cutoff_yield = self._farm.eff_yield * cutoff_ratio
+        self._yield = 0
+        self._run = 0
+
+    def update(self, current_size: int):
+        self._run += 1
+        completion_ratio = self._run / self._total_runs
+        new_yield = int(self._cutoff_yield * completion_ratio)
+
+        if new_yield > self._yield:
+            self._yield = new_yield
+            while self._farm.count() < self._yield:
+                self._farm.update()
+
+            self.refresh(current_size)
+
+    def refresh(self, current_size: int):
+        self._clear()
+        print(self._farm, file=sys.stderr)
+        print((
+                f"{current_size} {(self._run % self._run_count) + 1}"
+                f" {self._farm.count() / self._farm.eff_yield:.1%}"
+                f" {self._run / self._total_runs:.1%}"
+            ),
+            file=sys.stderr
+        )
+
+    @staticmethod
+    def _clear():
+        os.system("cls" if os.name == "nt" else "clear")
 
 
-def update_screen(size: int, farm: IceFarm, ticks: int):
-    clear_screen()
-    print(farm)
-    print(size, farm.count(), farm.get_eff_yield(), ticks)
-
-
-def simulate_generation(size: int, cutoff_ratio: float = 1.0, debug: bool = False) -> int:
+def simulate_generation(size: int, cutoff_ratio: float = 1.0) -> int:
     farm = IceFarm(size)
-    eff_yield = farm.get_eff_yield()
+    eff_yield = farm.eff_yield
     ticks = 0
 
-    if debug:
-        update_screen(size, farm, ticks)
-
-    last_count = curr_count = farm.count()
-    while curr_count < eff_yield * cutoff_ratio:
+    while farm.count() < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
-        curr_count = farm.count()
-
-        if debug and curr_count > last_count:
-            last_count = curr_count
-            update_screen(size, farm, ticks)
 
     return ticks
 
 
-def simulate_center(size: int, cutoff_ratio: float = 1.0, debug: bool = False) -> int:
+def simulate_center(size: int, cutoff_ratio: float = 1.0) -> int:
     farm = IceFarm(size)
-    eff_yield = farm.get_eff_yield()
     ticks = 0
 
-    if debug:
-        update_screen(size, farm, ticks)
-
-    last_count = curr_count = farm.count()
-    while curr_count < eff_yield * cutoff_ratio:
+    count = farm.count()
+    while count < farm.eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
-        curr_count = farm.count()
-
-        if debug and curr_count > last_count:
-            last_count = curr_count
-            update_screen(size, farm, ticks)
+        count = farm.count()
 
         if farm.center_touched():
-            return farm.count() / farm.get_eff_yield()
+            return count / farm.eff_yield
 
-    return farm.count() / farm.get_eff_yield()
+    return farm.count() / farm.eff_yield
 
 
 def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
     farm = IceFarm(size)
-    eff_yield = farm.get_eff_yield()
+    eff_yield = farm.eff_yield
     ticks = 0
     moments = []
 
@@ -215,6 +237,13 @@ Copyright (c) 2021 Dekameter <dekameter@giant.ink>
 
 This work is licensed under the terms of the Artistic License 2.0.
 For a copy, see <https://opensource.org/license/artistic-2-0>.
+"""
+    )
+    parser.add_argument(
+        "-o", "--out", default=None, type=Path,
+        help=""""
+Provide a path to output results to a text file. If not provided, then no file is written to and
+the recorded statistics are discarded.
 """
     )
     parser.add_argument(
@@ -259,12 +288,12 @@ parallelism is done.
 
     args = parser.parse_args()
 
+    out_path = args.out
     max_size = args.size
     cutoff_ratio = args.cutoff
     run_count = args.run
     increment = args.increment
     moment_mode = args.moment
-    debug = args.debug
 
     if max_size < MIN_SIZE:
         raise ValueError(f"--size must be at least {MIN_SIZE}.")
@@ -272,35 +301,41 @@ parallelism is done.
     if cutoff_ratio < 0.0 or cutoff_ratio > 1.0:
         raise ValueError("--cutoff must be inclusively between 0.0 and 1.0.")
 
-    sizes = range(MIN_SIZE if increment else max_size, max_size + 1)
+    sizes = list(range(MIN_SIZE if increment else max_size, max_size + 1))
     if moment_mode:
         time_ratios = []
 
+    screen = Screen(17, len(sizes), run_count, cutoff_ratio)
+    screen.refresh(sizes[0])
+
     for size in sizes:
-        # If we're running in debug mode, we don't want multiprocessing, and only do one run for
-        # each
-        if debug:
-            simulate_generation(size, cutoff_ratio, debug)
-        elif moment_mode:
+        if moment_mode:
             with multiprocessing.Pool() as pool:
-                runs = list(pool.starmap(
-                    sim_gen_moments,
-                    zip(repeat(size, run_count), repeat(cutoff_ratio, run_count))
-                ))
+                runs = []
+                for run in pool.imap_unordered(
+                        functools.partial(sim_gen_moments, size),
+                        repeat(cutoff_ratio, run_count)):
+                    runs.append(run)
+                    screen.update(size)
+
                 time_ratio = list(map(lambda x: sum(x) / len(x), zip(*runs)))
                 time_ratios.append(time_ratio)
         else:
             with multiprocessing.Pool() as pool:
-                runs = list(pool.starmap(
-                    simulate_generation,
-                    zip(repeat(size, run_count), repeat(cutoff_ratio, run_count))
-                ))
+                runs = []
+                for run in pool.imap_unordered(
+                        functools.partial(simulate_generation, size),
+                        repeat(cutoff_ratio, run_count)):
+                    runs.append(run)
+                    screen.update(size)
 
             # Print the field size, min, max, average, and median tick runtime
-            print(
-                (f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
-                 f",{list(sorted(runs))[len(runs) // 2]}")
-            )
+            if out_path is not None:
+                with out_path.open("w") as fd:
+                    fd.write((
+                        f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
+                        f",{list(sorted(runs))[len(runs) // 2]}\n"
+                    ))
 
     if moment_mode:
         yield_ratios = []
