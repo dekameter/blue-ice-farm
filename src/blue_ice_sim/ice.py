@@ -195,8 +195,11 @@ def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
 CHUNK_SIZE = 16
 # Each block has a 1 in 16th chance of being weather updated
 WEATHER_UPDATE_CHANCE = 1 / 16
-RUN_COUNT = 10
 MIN_SIZE = 3
+
+DEFAULT_SIZE = 7
+DEFAULT_CUTOFF = 1.0
+DEFAULT_RUN_COUNT = 1000
 
 def main():
     parser = argparse.ArgumentParser(
@@ -215,15 +218,22 @@ For a copy, see <https://opensource.org/license/artistic-2-0>.
 """
     )
     parser.add_argument(
-        "-s", "--size", default=7, type=int,
+        "-s", "--size", default=DEFAULT_SIZE, type=int,
         help=(
             f"The size to test against, or if '--increment' is set,"
             f" run up to this size. Cannot be below {MIN_SIZE}, and"
-            f" defaults to 7."
+            f" defaults to {DEFAULT_SIZE}."
         )
     )
     parser.add_argument(
-        "-c", "--cutoff", default=1.0, type=float,
+        "-c", "--cutoff", default=DEFAULT_CUTOFF, type=float,
+        help=(
+            f"Set a percentage to cutoff from 0.0 to 1.0. Defaults to {DEFAULT_CUTOFF} (aka. every"
+            f"block is filled"
+        )
+    )
+    parser.add_argument(
+        "-r", "--run", default=DEFAULT_RUN_COUNT, type=int,
         help="""
 Set a percentage to cutoff from 0.0 to 1.0. Defaults to 1.0 (aka. every
 block is filled).
@@ -250,6 +260,7 @@ parallelism is done.
 
     max_size = args.size
     cutoff_ratio = args.cutoff
+    run_count = args.run
     increment = args.increment
     moment_mode = args.moment
     debug = args.debug
@@ -273,7 +284,7 @@ parallelism is done.
             with multiprocessing.Pool() as pool:
                 runs = list(pool.starmap(
                     sim_gen_moments,
-                    zip(repeat(size, RUN_COUNT), repeat(cutoff_ratio, RUN_COUNT))
+                    zip(repeat(size, run_count), repeat(cutoff_ratio, run_count))
                 ))
                 time_ratio = list(map(lambda x: sum(x) / len(x), zip(*runs)))
                 time_ratios.append(time_ratio)
@@ -281,7 +292,7 @@ parallelism is done.
             with multiprocessing.Pool() as pool:
                 runs = list(pool.starmap(
                     simulate_generation,
-                    zip(repeat(size, RUN_COUNT), repeat(cutoff_ratio, RUN_COUNT))
+                    zip(repeat(size, run_count), repeat(cutoff_ratio, run_count))
                 ))
 
             # Print the field size, min, max, average, and median tick runtime
