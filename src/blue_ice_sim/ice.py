@@ -297,12 +297,6 @@ increasing yield. After every size is simulated, it will then plot each
 size with percentage of yield vs. percentage of time taken 
 """
     )
-    parser.add_argument(
-        "-d", "--debug", action="store_true",
-        help="""
-Run in debug mode, where the farm will be printed instead, and no
-parallelism is done.
-""")
 
     args = parser.parse_args()
 
