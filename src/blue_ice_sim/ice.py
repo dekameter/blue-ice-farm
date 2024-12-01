@@ -107,7 +107,7 @@ class IceFarm:
     def increment(self):
         water_cells = (
             cell for row in self._grid for cell in row
-            if not (cell.frozen or cell.border and cell.blocked)
+            if not (cell.frozen or cell.border or cell.blocked)
         )
 
         freezable_cells = [
