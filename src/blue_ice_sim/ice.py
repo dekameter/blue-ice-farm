@@ -2,6 +2,7 @@ import argparse
 import functools
 import os
 import sys
+import time
 import multiprocessing
 import random
 from dataclasses import dataclass
@@ -151,6 +152,43 @@ class Screen:
         self._yield_threshold = self._farm.eff_yield * threshold
         self._yield = 0
         self._run = 0
+        self._status = ""
+        self._warning = ""
+        self._error = ""
+        self._warning_timeout = 0
+        self._warning_start_time = 0
+
+    @property
+    def status(self) -> str:
+        return self._status
+
+    @status.setter
+    def status(self, value: str):
+        self._status = value
+
+    @property
+    def warning(self) -> str:
+        return self._warning
+
+    @warning.setter
+    def warning(self, value: str):
+        self._warning = value
+
+    @property
+    def error(self) -> str:
+        return self._error
+
+    @error.setter
+    def error(self, value: str):
+        self._error = value
+
+    @property
+    def warning_timeout(self) -> float:
+        return self._warning_timeout
+
+    @warning_timeout.setter
+    def warning_timeout(self, value: float):
+        self._warning_timeout = max(value, 0)
 
     def update(self, current_size: int):
         self._run += 1
@@ -174,6 +212,18 @@ class Screen:
             ),
             file=sys.stderr
         )
+        if self._status:
+            print(self._status, file=sys.stderr)
+        if self._warning:
+            if self._warning_timeout > 0:
+                if self._warning_start_time <= 0:
+                    self._warning_start_time = time.time()
+                elif time.time() - self._warning_start_time > self._warning_timeout:
+                    self._warning = ""
+            if self._warning:
+                print(self._warning, file=sys.stderr)
+        if self._error:
+            print(self._error, file=sys.stderr)
 
     @staticmethod
     def _clear():
@@ -232,6 +282,8 @@ MIN_SIZE = 3
 DEFAULT_SIZE = 7
 DEFAULT_THRESHOLD = 0.95
 DEFAULT_RUN_COUNT = 1000
+
+WARNING_TIMEOUT = 7
 
 def main():
     parser = argparse.ArgumentParser(
@@ -316,9 +368,10 @@ size with percentage of yield vs. percentage of time taken
     if max_size < MIN_SIZE:
         raise ValueError(f"--size must be at least {MIN_SIZE}.")
 
+    ignore_threshold = False
     if threshold is None:
         if center_mode:
-            print("Warning: --center set, threshold will be ignored", file=sys.stderr)
+            ignore_threshold = True
             threshold = 1.0
         else:
             threshold = DEFAULT_THRESHOLD
@@ -331,6 +384,9 @@ size with percentage of yield vs. percentage of time taken
         time_ratios = []
 
     screen = Screen(17, len(sizes), run_count, threshold)
+    if ignore_threshold and center_mode:
+        screen.warning = "Warning: --center set, threshold will be ignored"
+        screen.warning_timeout = WARNING_TIMEOUT
     screen.refresh(sizes[0])
 
     out_path.unlink(True)
@@ -344,12 +400,16 @@ size with percentage of yield vs. percentage of time taken
                     runs.append(run)
                     screen.update(size)
 
+            # Print the field size, min, max, average, and median yield percentage
+            data = (
+                f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
+                f",{list(sorted(runs))[len(runs) // 2]}"
+            )
+            screen.status = data
+            screen.refresh(size)
             if out_path is not None:
                 with out_path.open("a") as fd:
-                    fd.write((
-                        f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
-                        f",{list(sorted(runs))[len(runs) // 2]}\n"
-                    ))
+                    fd.write(f"{data}\n")
         elif moment_mode:
             with multiprocessing.Pool() as pool:
                 runs = []
@@ -371,12 +431,15 @@ size with percentage of yield vs. percentage of time taken
                     screen.update(size)
 
             # Print the field size, min, max, average, and median tick runtime
+            data = (
+                f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
+                f",{list(sorted(runs))[len(runs) // 2]}"
+            )
+            screen.status = data
+            screen.refresh(size)
             if out_path is not None:
                 with out_path.open("a") as fd:
-                    fd.write((
-                        f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
-                        f",{list(sorted(runs))[len(runs) // 2]}\n"
-                    ))
+                    fd.write(f"{data}\n")
 
     if moment_mode:
         yield_ratios = []
