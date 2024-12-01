@@ -325,6 +325,9 @@ parallelism is done.
     screen = Screen(17, len(sizes), run_count, cutoff_ratio)
     screen.refresh(sizes[0])
 
+    out_path.unlink(True)
+    out_path.touch()
+
     for size in sizes:
         if moment_mode:
             with multiprocessing.Pool() as pool:
@@ -348,7 +351,7 @@ parallelism is done.
 
             # Print the field size, min, max, average, and median tick runtime
             if out_path is not None:
-                with out_path.open("w") as fd:
+                with out_path.open("a") as fd:
                     fd.write((
                         f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
                         f",{list(sorted(runs))[len(runs) // 2]}\n"
