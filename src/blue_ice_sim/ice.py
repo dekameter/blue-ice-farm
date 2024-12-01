@@ -79,12 +79,17 @@ class IceFarm:
     def count(self) -> int:
         return self._count
 
+    @property
+    def is_center_reached(self) -> bool:
+        return any(
+            self._grid[i][j].frozen for i, j in product(
+                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1),
+                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1))
+        )
+
     def print_adjacency(self):
         for row in self._grid:
             print(" ".join("X" if cell.border else str(len(cell.adjacents)) for cell in row))
-
-    def __str__(self):
-        return "\n".join(" ".join(str(cell) for cell in row) for row in self._grid)
 
     def update(self):
         # Treat the grid layout as Minecraft chunks, where each chunk has an independent weather
@@ -134,34 +139,23 @@ class IceFarm:
 
         return eff_yield
 
-    def center_touched(self):
-        # print([(i, j) for i, j in product(
-        #     range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1),
-        #     range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1))])
-        # print(len(self._grid))
-        # sys.exit()
-
-        return any(
-            self._grid[i][j].frozen for i, j in product(
-                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1),
-                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1))
-        )
-
+    def __str__(self):
+        return "\n".join(" ".join(str(cell) for cell in row) for row in self._grid)
 
 class Screen:
-    def __init__(self, size: int, size_count: int, run_count: int, cutoff_ratio: float = 1.0):
+    def __init__(self, size: int, size_count: int, run_count: int, threshold: float = 1.0):
         self._farm = IceFarm(size)
         self._size_count = size_count
         self._run_count = run_count
         self._total_runs = self._size_count * self._run_count
-        self._cutoff_yield = self._farm.eff_yield * cutoff_ratio
+        self._yield_threshold = self._farm.eff_yield * threshold
         self._yield = 0
         self._run = 0
 
     def update(self, current_size: int):
         self._run += 1
         completion_ratio = self._run / self._total_runs
-        new_yield = int(self._cutoff_yield * completion_ratio)
+        new_yield = int(self._yield_threshold * completion_ratio)
 
         if new_yield > self._yield:
             for _ in range(new_yield - self._yield):
@@ -186,42 +180,40 @@ class Screen:
         os.system("cls" if os.name == "nt" else "clear")
 
 
-def simulate_generation(size: int, cutoff_ratio: float = 1.0) -> int:
+def simulate_generation(size: int, threshold: float = 1.0) -> int:
     farm = IceFarm(size)
     eff_yield = farm.eff_yield
     ticks = 0
 
-    while farm.count < eff_yield * cutoff_ratio:
+    while farm.count < eff_yield * threshold:
         ticks += 1
         farm.update()
 
     return ticks
 
 
-def simulate_center(size: int, cutoff_ratio: float = 1.0) -> int:
+def simulate_center(size: int) -> float:
     farm = IceFarm(size)
     ticks = 0
 
-    count = farm.count
-    while count < farm.eff_yield * cutoff_ratio:
+    while farm.count < farm.eff_yield:
         ticks += 1
         farm.update()
-        count = farm.count
 
-        if farm.center_touched():
-            return count / farm.eff_yield
+        if farm.is_center_reached:
+            return farm.count / farm.eff_yield
 
     return farm.count / farm.eff_yield
 
 
-def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
+def sim_gen_moments(size: int, threshold: float = 1.0) -> list[int]:
     farm = IceFarm(size)
     eff_yield = farm.eff_yield
     ticks = 0
     moments = []
 
     last_count = curr_count = farm.count
-    while curr_count < eff_yield * cutoff_ratio:
+    while curr_count < eff_yield * threshold:
         ticks += 1
         farm.update()
         curr_count = farm.count
@@ -238,7 +230,7 @@ WEATHER_UPDATE_CHANCE = 1 / 16
 MIN_SIZE = 3
 
 DEFAULT_SIZE = 7
-DEFAULT_CUTOFF = 0.95
+DEFAULT_THRESHOLD = 0.95
 DEFAULT_RUN_COUNT = 1000
 
 def main():
@@ -273,24 +265,37 @@ the recorded statistics are discarded.
         )
     )
     parser.add_argument(
-        "-c", "--cutoff", default=DEFAULT_CUTOFF, type=float,
+        "-t", "--threshold", default=None, type=float,
         help=(
-            f"Set a percentage to cutoff from 0.0 to 1.0. Defaults to {DEFAULT_CUTOFF} (aka. every"
-            f"block is filled"
+            f"Set a percentage to cutoff from 0.0 to 1.0. Defaults to"
+            f" {DEFAULT_THRESHOLD} (aka. every block is filled). This"
+            f" value is ignored when using --center."
         )
     )
     parser.add_argument(
         "-r", "--run", default=DEFAULT_RUN_COUNT, type=int,
         help=(
-            f"Set how times to run the simulation for to more accurately determine the statistics."
-            f"Default to {DEFAULT_RUN_COUNT} runs."
+            f"Set how times to run the simulation for to more"
+            f" accurately determine the statistics. Default to"
+            f" {DEFAULT_RUN_COUNT} runs."
         )
     )
     parser.add_argument(
         "-i", "--increment", action="store_true",
-        help="Increments starting at a size of 3 up to '--size' set.")
-    parser.add_argument(
-        "-m", "--moment", action="store_true",
+        help="Increments starting at a size of 3 up to '--size' set."
+    )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--center", action="store_true",
+        help="""
+Instead of the standard mode, runs the simulation until the center is
+reached. The minimum, maximum, average, and median yield percentages
+are saved to the file. --threshold is ignored.
+"""
+    )
+    group.add_argument(
+        "--moment", action="store_true",
         help="""
 Instead of the standard mode, computes the average time taken for each
 increasing yield. After every size is simulated, it will then plot each
@@ -302,34 +307,55 @@ size with percentage of yield vs. percentage of time taken
 
     out_path = args.out
     max_size = args.size
-    cutoff_ratio = args.cutoff
+    threshold = args.threshold
     run_count = args.run
     increment = args.increment
+    center_mode = args.center
     moment_mode = args.moment
 
     if max_size < MIN_SIZE:
         raise ValueError(f"--size must be at least {MIN_SIZE}.")
 
-    if cutoff_ratio < 0.0 or cutoff_ratio > 1.0:
-        raise ValueError("--cutoff must be inclusively between 0.0 and 1.0.")
+    if threshold is None:
+        if center_mode:
+            print("Warning: --center set, threshold will be ignored", file=sys.stderr)
+            threshold = 1.0
+        else:
+            threshold = DEFAULT_THRESHOLD
+
+    if threshold < 0.0 or threshold > 1.0:
+        raise ValueError("--threshold must be inclusively between 0.0 and 1.0.")
 
     sizes = list(range(MIN_SIZE if increment else max_size, max_size + 1))
     if moment_mode:
         time_ratios = []
 
-    screen = Screen(17, len(sizes), run_count, cutoff_ratio)
+    screen = Screen(17, len(sizes), run_count, threshold)
     screen.refresh(sizes[0])
 
     out_path.unlink(True)
     out_path.touch()
 
     for size in sizes:
-        if moment_mode:
+        if center_mode:
+            with multiprocessing.Pool() as pool:
+                runs = []
+                for run in pool.imap_unordered(simulate_center, repeat(size, run_count)):
+                    runs.append(run)
+                    screen.update(size)
+
+            if out_path is not None:
+                with out_path.open("a") as fd:
+                    fd.write((
+                        f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
+                        f",{list(sorted(runs))[len(runs) // 2]}\n"
+                    ))
+        elif moment_mode:
             with multiprocessing.Pool() as pool:
                 runs = []
                 for run in pool.imap_unordered(
                         functools.partial(sim_gen_moments, size),
-                        repeat(cutoff_ratio, run_count)):
+                        repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
 
@@ -340,7 +366,7 @@ size with percentage of yield vs. percentage of time taken
                 runs = []
                 for run in pool.imap_unordered(
                         functools.partial(simulate_generation, size),
-                        repeat(cutoff_ratio, run_count)):
+                        repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
 
