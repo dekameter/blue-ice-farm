@@ -179,7 +179,7 @@ class IceFarm:
         :return: How many ice blocks that can exist
         """
         eff_yield = self._size * (self._size - 1)
-        # For farms crater than 7, another diagonal must be used that shouldn't be count
+        # For farms greater than 7, another diagonal must be used that shouldn't be count
         if self._size > 7:
             eff_yield -= self._size
             # If odd, avoid counting the center twice when using a cross pattern
