@@ -39,6 +39,7 @@ class IceFarm:
             raise ValueError("Size must be positive.")
 
         self._size = size
+        self._count = 0
         self._eff_yield = self._get_eff_yield()
         # Ceiling divide
         self._chunk_count = size // CHUNK_SIZE + (0 if size % CHUNK_SIZE == 0 else 1)
@@ -91,16 +92,17 @@ class IceFarm:
                 j = random.randint(1, CHUNK_SIZE) + (c_j * CHUNK_SIZE)
 
                 if (0 < i < self._size + 2 and 0 < j < self._size + 2
-                        and not self._grid[i][j].border and not self._grid[i][j].blocked):
+                        and not(
+                            self._grid[i][j].frozen
+                            or self._grid[i][j].border
+                            or self._grid[i][j].blocked)):
                     if any(cell.frozen or cell.border for cell in self._grid[i][j].adjacents):
                         self._grid[i][j].frozen = True
+                        self._count += 1
 
-    def count(self):
-        """
-        The number of ice blocks that currently exist.
-        """
-        return sum(1 for i, j in product(range(self._size + 2), repeat=2)
-                   if not self._grid[i][j].border and self._grid[i][j].frozen)
+    @property
+    def count(self) -> int:
+        return self._count
 
     def _get_eff_yield(self):
         """
@@ -147,7 +149,7 @@ class Screen:
 
         if new_yield > self._yield:
             self._yield = new_yield
-            while self._farm.count() < self._yield:
+            while self._farm.count < self._yield:
                 self._farm.update()
 
             self.refresh(current_size)
@@ -157,7 +159,7 @@ class Screen:
         print(self._farm, file=sys.stderr)
         print((
                 f"{current_size} {(self._run % self._run_count) + 1}"
-                f" {self._farm.count() / self._farm.eff_yield:.1%}"
+                f" {self._farm.count / self._farm.eff_yield:.1%}"
                 f" {self._run / self._total_runs:.1%}"
             ),
             file=sys.stderr
@@ -173,7 +175,7 @@ def simulate_generation(size: int, cutoff_ratio: float = 1.0) -> int:
     eff_yield = farm.eff_yield
     ticks = 0
 
-    while farm.count() < eff_yield * cutoff_ratio:
+    while farm.count < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
 
@@ -184,16 +186,16 @@ def simulate_center(size: int, cutoff_ratio: float = 1.0) -> int:
     farm = IceFarm(size)
     ticks = 0
 
-    count = farm.count()
+    count = farm.count
     while count < farm.eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
-        count = farm.count()
+        count = farm.count
 
         if farm.center_touched():
             return count / farm.eff_yield
 
-    return farm.count() / farm.eff_yield
+    return farm.count / farm.eff_yield
 
 
 def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
@@ -202,11 +204,11 @@ def sim_gen_moments(size: int, cutoff_ratio: float = 1.0) -> list[int]:
     ticks = 0
     moments = []
 
-    last_count = curr_count = farm.count()
+    last_count = curr_count = farm.count
     while curr_count < eff_yield * cutoff_ratio:
         ticks += 1
         farm.update()
-        curr_count = farm.count()
+        curr_count = farm.count
 
         if curr_count > last_count:
             last_count = curr_count
