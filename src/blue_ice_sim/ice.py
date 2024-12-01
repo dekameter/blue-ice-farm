@@ -1,3 +1,6 @@
+"""A script used to simulate and analyze the nature of Minecraft ice farm generation.
+"""
+
 import argparse
 import functools
 import os
@@ -16,6 +19,9 @@ import plotly.express as px
 
 @dataclass
 class Ice:
+    """A single block of ice that tracks whether or not its frozen, blocked (from the sun), and
+    whether or not it's a border block. A list of adjacents is also tracked.
+    """
     adjacents: list[Self]
     # Any adjacents to a border or frozen has a chance to be frozen
     border: bool = False
@@ -35,7 +41,22 @@ class Ice:
 
 
 class IceFarm:
+    """A representation of an optimal Minecraft ice farm that simulates the propogation of ice from
+    the borders toward the center. The farm is appropriately split into chunks, and each chunk
+    has the possibility of forming a single ice block if there is an adjacent solid or frozen block.
+    """
     def __init__(self, size: int) -> None:
+        """Generates an ice farm based on Minecraft guides and tutorials. The size given is the size
+        in any one dimension, so the ice farm is a grid with size * size blocks. An extra one block
+        border is formed around the ice farm, making the total grid size (size + 2)^2. For
+        sizes <= 7, a single diagonal is used to block the ice so that water can reform the ice
+        afterwards. For sizes > 7, two diagonals / an X is instead used, as that is necessary to
+        refill the farm properly.
+
+        :param size: _description_
+        :raises ValueError: _description_
+        :yield: _description_
+        """
         if size < 1:
             raise ValueError("Size must be positive.")
 
@@ -70,18 +91,35 @@ class IceFarm:
 
     @property
     def size(self) -> int:
+        """How large the ice farm is in one dimension. Excludes the border. In other words,
+        size = 3 means a 3x3 farm with a 4x4 single block border all around.
+
+        :return: The size of the farm in one dimension
+        """
         return self._size
 
     @property
     def eff_yield(self) -> int:
+        """The maximum possible frozen blocks for this farm based on its size
+
+        :return: The max number of frozen blocks
+        """
         return self._eff_yield
 
     @property
     def count(self) -> int:
+        """The count of how many current blocks are frozen
+
+        :return: How many blocks are frozen
+        """
         return self._count
 
     @property
     def is_center_reached(self) -> bool:
+        """Determines whether the ice has become adjacent to the center of the farm or not
+
+        :return: True for ice adjacent to center, otherwise False
+        """
         return any(
             self._grid[i][j].frozen for i, j in product(
                 range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1),
@@ -89,10 +127,17 @@ class IceFarm:
         )
 
     def print_adjacency(self):
+        """Instead of standard printing, it prints each ice block as the number of adjacents it
+        has. Useful for debugging purposes.
+        """
         for row in self._grid:
             print(" ".join("X" if cell.border else str(len(cell.adjacents)) for cell in row))
 
     def update(self):
+        """Runs a single tick of simulation mimicking Minecraft rules and chunks. There's no
+        guarantee that any blocks will be frozen in any given tick, or multiple blocks can freeze
+        in one tick depending on how many chunks the farm is.
+        """
         # Treat the grid layout as Minecraft chunks, where each chunk has an independent weather
         # check
         for c_i, c_j in product(range(self._chunk_count), repeat=2):
@@ -111,6 +156,8 @@ class IceFarm:
                         self._count += 1
 
     def increment(self):
+        """Guarantees a single water block being frozen while still following adjaceny rules
+        """
         water_cells = (
             cell for row in self._grid for cell in row
             if not (cell.frozen or cell.border or cell.blocked)
@@ -126,9 +173,10 @@ class IceFarm:
             block.frozen = True
             self._count += 1
 
-    def _get_eff_yield(self):
-        """
-        The effective yield, the number of ice blocks that can exist.
+    def _get_eff_yield(self) -> int:
+        """The effective yield, the number of ice blocks that can exist
+
+        :return: How many ice blocks that can exist
         """
         eff_yield = self._size * (self._size - 1)
         # For farms crater than 7, another diagonal must be used that shouldn't be count
@@ -141,15 +189,30 @@ class IceFarm:
         return eff_yield
 
     def __str__(self):
+        """Returns the ice farm as a series of lines that can be used for the terminal
+
+        :return: Returns the ice farm as a string representation
+        """
         return "\n".join(" ".join(str(cell) for cell in row) for row in self._grid)
 
 class Screen:
-    def __init__(self, size: int, size_count: int, run_count: int, threshold: float = 1.0):
-        self._farm = IceFarm(size)
+    """A tool to print out a single ice farm that functions as a progress bar.
+    """
+    def __init__(self, farm_size: int, size_count: int, run_count: int, threshold: float = 1.0):
+        """Generates a Screen that prints an ice farm that functions as a progress bar,
+        along with relevant metadata and status messages
+
+        :param farm_size: The size of the ice farm, excluding the borders
+        :param size_count: How many sizes are being tested
+        :param run_count: How many runs per size
+        :param threshold: At what yield threshold to stop at from 0.0 to 1.0, defaults to 1.0
+        """
+        self._farm = IceFarm(farm_size)
         self._size_count = size_count
         self._run_count = run_count
         self._total_runs = self._size_count * self._run_count
         self._yield_threshold = self._farm.eff_yield * threshold
+
         self._yield = 0
         self._run = 0
         self._status = ""
@@ -160,37 +223,76 @@ class Screen:
 
     @property
     def status(self) -> str:
+        """A status message to print below the metadata
+
+        :return: A string
+        """
         return self._status
 
     @status.setter
     def status(self, value: str):
+        """A status message to print below the metadata
+
+        :param value: A string, ideally excluding the newline
+        """
         self._status = value
 
     @property
     def warning(self) -> str:
+        """A warning message to print below the status message
+
+        :return: A string
+        """
         return self._warning
 
     @warning.setter
     def warning(self, value: str):
+        """A warning message to print below the status message. If a warning timeout is set, this
+        value is automatically cleared after self.warning_timeout seconds
+
+        :param value: A string, ideally excluding the newline
+        """
         self._warning = value
 
     @property
     def error(self) -> str:
+        """An error message to print below the warning message
+
+        :return: A string
+        """
         return self._error
 
     @error.setter
     def error(self, value: str):
+        """An error message to print below the warning message
+
+        :param value: A string, ideally excluding the newline
+        """
         self._error = value
 
     @property
     def warning_timeout(self) -> float:
+        """How long to leave the warning displayed for in seconds. If a warning timeout is set
+        greater than 0, self.warning is cleared out. Otherwise, warning will print indefinitely
+
+        :return: A float >= 0.0. 0.0 means an indefinite warning
+        """
         return self._warning_timeout
 
     @warning_timeout.setter
     def warning_timeout(self, value: float):
+        """How long to leave the warning displayed for in seconds.
+
+        :param value: Any value >= 0.0
+        """
         self._warning_timeout = max(value, 0)
 
     def update(self, current_size: int):
+        """Increments the Screen's progress by 1 and refreshes the screen.
+
+        :param current_size: A current size being processed, to be displayed
+        in the metatdata
+        """
         self._run += 1
         completion_ratio = self._run / self._total_runs
         new_yield = int(self._yield_threshold * completion_ratio)
@@ -203,6 +305,16 @@ class Screen:
             self._yield = new_yield
 
     def refresh(self, current_size: int):
+        """Clears out the terminal and re-prints the farm, metadata, and status messages
+        The order is:
+        [Farm]
+        [Current Size] [Current Run] [Percentage of Farm filled] [Percentage of Total Progress]
+        [Status]
+        [Warning]
+        [Error]
+
+        :param current_size: A current size being processed, to be displayed
+        """
         self._clear()
         print(self._farm, file=sys.stderr)
         print((
@@ -227,10 +339,18 @@ class Screen:
 
     @staticmethod
     def _clear():
+        """Clears out the terminal in a platform agnostic way
+        """
         os.system("cls" if os.name == "nt" else "clear")
 
 
 def simulate_generation(size: int, threshold: float = 1.0) -> int:
+    """Simulates standard ice farm generation until the threshold * effective yield is met.
+
+    :param size: The size of the ice farm in one-dimension
+    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults to 1.0
+    :return: The number of ticks it took to reach the threshold
+    """
     farm = IceFarm(size)
     eff_yield = farm.eff_yield
     ticks = 0
@@ -243,6 +363,12 @@ def simulate_generation(size: int, threshold: float = 1.0) -> int:
 
 
 def simulate_center(size: int) -> float:
+    """Simulates the ice farm generation until the center is reached by one of the adjacent ice
+    blocks.
+
+    :param size: The size of the ice farm in one-dimension
+    :return: The frozen block count / the effective yield
+    """
     farm = IceFarm(size)
     ticks = 0
 
@@ -256,7 +382,13 @@ def simulate_center(size: int) -> float:
     return farm.count / farm.eff_yield
 
 
-def sim_gen_moments(size: int, threshold: float = 1.0) -> list[int]:
+def simulate_moments(size: int, threshold: float = 1.0) -> list[int]:
+    """Simulates ice generation to where it tracks every moment new ice is formed in # of ticks
+
+    :param size: The size of the ice farm in one-dimension
+    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults to 1.0
+    :return: A list of all the ticks where ice was formed
+    """
     farm = IceFarm(size)
     eff_yield = farm.eff_yield
     ticks = 0
@@ -286,6 +418,8 @@ DEFAULT_RUN_COUNT = 1000
 WARNING_TIMEOUT = 7
 
 def main():
+    """The main entry point, meant to be called through the terminal
+    """
     parser = argparse.ArgumentParser(
         description="""
 Simulates the generation of a Minecraft ice farm and outputs a
@@ -414,7 +548,7 @@ size with percentage of yield vs. percentage of time taken
             with multiprocessing.Pool() as pool:
                 runs = []
                 for run in pool.imap_unordered(
-                        functools.partial(sim_gen_moments, size),
+                        functools.partial(simulate_moments, size),
                         repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
