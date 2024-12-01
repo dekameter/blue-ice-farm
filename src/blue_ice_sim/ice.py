@@ -75,6 +75,10 @@ class IceFarm:
     def eff_yield(self) -> int:
         return self._eff_yield
 
+    @property
+    def count(self) -> int:
+        return self._count
+
     def print_adjacency(self):
         for row in self._grid:
             print(" ".join("X" if cell.border else str(len(cell.adjacents)) for cell in row))
@@ -100,9 +104,20 @@ class IceFarm:
                         self._grid[i][j].frozen = True
                         self._count += 1
 
-    @property
-    def count(self) -> int:
-        return self._count
+    def increment(self):
+        water_cells = (
+            cell for row in self._grid for cell in row
+            if not (cell.frozen or cell.border and cell.blocked)
+        )
+
+        freezable_cells = [
+            cell for cell in water_cells
+            if any(adj for adj in cell.adjacents if adj.frozen or adj.border)
+        ]
+
+        block = random.choice(freezable_cells)
+        block.frozen = True
+        self._count += 1
 
     def _get_eff_yield(self):
         """
@@ -148,11 +163,11 @@ class Screen:
         new_yield = int(self._cutoff_yield * completion_ratio)
 
         if new_yield > self._yield:
-            self._yield = new_yield
-            while self._farm.count < self._yield:
-                self._farm.update()
+            for _ in range(new_yield - self._yield):
+                self._farm.increment()
+                self.refresh(current_size)
 
-            self.refresh(current_size)
+            self._yield = new_yield
 
     def refresh(self, current_size: int):
         self._clear()
