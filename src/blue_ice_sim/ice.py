@@ -115,9 +115,10 @@ class IceFarm:
             if any(adj for adj in cell.adjacents if adj.frozen or adj.border)
         ]
 
-        block = random.choice(freezable_cells)
-        block.frozen = True
-        self._count += 1
+        if freezable_cells:
+            block = random.choice(freezable_cells)
+            block.frozen = True
+            self._count += 1
 
     def _get_eff_yield(self):
         """
