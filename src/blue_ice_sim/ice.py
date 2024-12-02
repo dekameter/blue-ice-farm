@@ -521,13 +521,12 @@ size with percentage of yield vs. percentage of time taken
 
     ignore_threshold = False
     if threshold is None:
-        if center_mode:
-            ignore_threshold = True
-            threshold = 1.0
-        elif moment_mode:
+        if center_mode or moment_mode:
             threshold = 1.0
         else:
             threshold = DEFAULT_THRESHOLD
+    elif center_mode:
+        ignore_threshold = True
 
     if threshold < 0.0 or threshold > 1.0:
         raise ValueError("--threshold must be inclusively between 0.0 and 1.0.")
