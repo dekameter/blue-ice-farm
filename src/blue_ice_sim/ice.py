@@ -430,6 +430,7 @@ DEFAULT_SIZE = 7
 DEFAULT_THRESHOLD = 0.95
 DEFAULT_RUN_COUNT = 1000
 
+SCREEN_SIZE = 17
 WARNING_TIMEOUT = 7
 
 def main():
@@ -535,7 +536,7 @@ size with percentage of yield vs. percentage of time taken
     if moment_mode:
         moments = []
 
-    screen = Screen(17, len(sizes), run_count, threshold)
+    screen = Screen(SCREEN_SIZE, len(sizes), run_count, threshold)
     if ignore_threshold and center_mode:
         screen.warning = "Warning: --center set, threshold will be ignored"
         screen.warning_timeout = WARNING_TIMEOUT
