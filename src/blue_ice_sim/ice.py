@@ -318,7 +318,7 @@ class Screen:
         self._clear()
         print(self._farm, file=sys.stderr)
         print((
-                f"{current_size} {(self._run % self._run_count) + 1}"
+                f"{current_size} {(self._run % self._run_count)}"
                 f" {self._farm.count / self._farm.eff_yield:.1%}"
                 f" {self._run / self._total_runs:.1%}"
             ),
