@@ -120,10 +120,16 @@ class IceFarm:
 
         :return: True for ice adjacent to center, otherwise False
         """
+        min_corner = (len(self._grid) // 2) - 1
+        max_corner = ((len(self._grid) + 1) // 2) + 1
+
+        if self._size > 7 and self._size % 2 == 0:
+            min_corner -= 1
+            max_corner += 1
+
         return any(
             self._grid[i][j].frozen for i, j in product(
-                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1),
-                range((len(self._grid) - 1) // 2, (len(self._grid) + 3) // 2 + 1))
+                range(min_corner, max_corner), range(min_corner, max_corner))
         )
 
     def print_adjacency(self):
