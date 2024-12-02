@@ -204,7 +204,8 @@ class IceFarm:
 class Screen:
     """A tool to print out a single ice farm that functions as a progress bar.
     """
-    def __init__(self, farm_size: int, size_count: int, run_count: int, threshold: float = 1.0):
+    def __init__(self, farm_size: int, size_count: int, run_count: int, threshold: float = 1.0,
+                 center_mode: bool = False):
         """Generates a Screen that prints an ice farm that functions as a progress bar,
         along with relevant metadata and status messages
 
@@ -212,12 +213,15 @@ class Screen:
         :param size_count: How many sizes are being tested
         :param run_count: How many runs per size
         :param threshold: At what yield threshold to stop at from 0.0 to 1.0, defaults to 1.0
+        :param center_mode: Whether to stop updating when the center is reached. Threshold will be
+        ignored
         """
         self._farm = IceFarm(farm_size)
         self._size_count = size_count
         self._run_count = run_count
         self._total_runs = self._size_count * self._run_count
         self._yield_threshold = self._farm.eff_yield * threshold
+        self._center_mode = center_mode
 
         self._yield = 0
         self._run = 0
@@ -304,10 +308,14 @@ class Screen:
         new_yield = int(self._yield_threshold * completion_ratio)
 
         if new_yield > self._yield:
-            for _ in range(new_yield - self._yield):
-                self._farm.increment()
-                self.refresh(current_size)
+            if not self._center_mode or not self._farm.is_center_reached:
+                for _ in range(new_yield - self._yield):
+                    self._farm.increment()
 
+                    if self._farm.is_center_reached:
+                        break
+
+            self.refresh(current_size)
             self._yield = new_yield
 
     def refresh(self, current_size: int):
@@ -536,7 +544,7 @@ size with percentage of yield vs. percentage of time taken
     if moment_mode:
         moments = []
 
-    screen = Screen(SCREEN_SIZE, len(sizes), run_count, threshold)
+    screen = Screen(SCREEN_SIZE, len(sizes), run_count, threshold, center_mode)
     if ignore_threshold and center_mode:
         screen.warning = "Warning: --center set, threshold will be ignored"
         screen.warning_timeout = WARNING_TIMEOUT
