@@ -523,8 +523,9 @@ size with percentage of yield vs. percentage of time taken
         screen.warning_timeout = WARNING_TIMEOUT
     screen.refresh(sizes[0])
 
-    out_path.unlink(True)
-    out_path.touch()
+    if out_path:
+        out_path.unlink(True)
+        out_path.touch()
 
     for size in sizes:
         if center_mode:
