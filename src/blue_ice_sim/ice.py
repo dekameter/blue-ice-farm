@@ -382,29 +382,38 @@ def simulate_center(size: int) -> float:
     return farm.count / farm.eff_yield
 
 
-def simulate_moments(size: int, threshold: float = 1.0) -> list[int]:
+def simulate_moments(size: int, threshold: float = 1.0) -> pd.DataFrame:
     """Simulates ice generation to where it tracks every moment new ice is formed in # of ticks
 
     :param size: The size of the ice farm in one-dimension
     :param threshold: The threshold to stop at from 0.0 to 1.0, defaults to 1.0
-    :return: A list of all the ticks where ice was formed
+    :return: A Pandas DataFrame consisting of farm size ["size"], effective yield ["eff_yield"],
+    yield ["yield"], total time (in ticks) ["total_time"], time percentage ["time_ratio"] 
     """
     farm = IceFarm(size)
-    eff_yield = farm.eff_yield
     ticks = 0
-    moments = []
 
-    last_count = curr_count = farm.count
-    while curr_count < eff_yield * threshold:
+    yields = [0]
+    times = [0]
+
+    last_count = farm.count
+    while farm.count < farm.eff_yield * threshold:
         ticks += 1
         farm.update()
-        curr_count = farm.count
 
-        if curr_count > last_count:
-            last_count = curr_count
-            moments.append(ticks)
+        if farm.count > last_count:
+            last_count = farm.count
 
-    return [moment / ticks for moment in moments]
+            yields.append(farm.count)
+            times.append(ticks)
+
+    return pd.DataFrame({
+        "size": size,
+        "eff_yield": farm.eff_yield,
+        "yield": yields,
+        "total_time": ticks,
+        "time_ratio": [t / ticks for t in times]
+    })
 
 CHUNK_SIZE = 16
 # Each block has a 1 in 16th chance of being weather updated
@@ -454,8 +463,10 @@ the recorded statistics are discarded.
         "-t", "--threshold", default=None, type=float,
         help=(
             f"Set a percentage to cutoff from 0.0 to 1.0. Defaults to"
-            f" {DEFAULT_THRESHOLD} (aka. every block is filled). This"
-            f" value is ignored when using --center."
+            f" {DEFAULT_THRESHOLD} (aka. 95% of the available blocks"
+            f" are filled) for standard mode. Defaults to 1.0 for"
+            f" --moment mode. This value is ignored when using"
+            f" --center."
         )
     )
     parser.add_argument(
@@ -507,6 +518,8 @@ size with percentage of yield vs. percentage of time taken
         if center_mode:
             ignore_threshold = True
             threshold = 1.0
+        elif moment_mode:
+            threshold = 1.0
         else:
             threshold = DEFAULT_THRESHOLD
 
@@ -515,7 +528,7 @@ size with percentage of yield vs. percentage of time taken
 
     sizes = list(range(MIN_SIZE if increment else max_size, max_size + 1))
     if moment_mode:
-        time_ratios = []
+        moments = []
 
     screen = Screen(17, len(sizes), run_count, threshold)
     if ignore_threshold and center_mode:
@@ -548,14 +561,19 @@ size with percentage of yield vs. percentage of time taken
         elif moment_mode:
             with multiprocessing.Pool() as pool:
                 runs = []
+
                 for run in pool.imap_unordered(
                         functools.partial(simulate_moments, size),
                         repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
 
-                time_ratio = list(map(lambda x: sum(x) / len(x), zip(*runs)))
-                time_ratios.append(time_ratio)
+                df = pd.concat(runs)
+                sub_moments_df = df.groupby(
+                    by=["size", "yield"], group_keys=True).mean().reset_index()
+                sub_moments_df["yield_ratio"] = (sub_moments_df["yield"] /
+                                                 sub_moments_df["eff_yield"])
+                moments.append(sub_moments_df)
         else:
             with multiprocessing.Pool() as pool:
                 runs = []
@@ -577,25 +595,9 @@ size with percentage of yield vs. percentage of time taken
                     fd.write(f"{data}\n")
 
     if moment_mode:
-        yield_ratios = []
-        for moments in time_ratios:
-            yield_ratio = [i / len(moments) for i in range(len(moments))]
-            yield_ratios.append(yield_ratio)
-
-        repeated_sizes = np.hstack([
-            list(repeat(size, len(ratio))) for size, ratio in zip(sizes, yield_ratios)
-        ])
-        time_ratios = np.hstack(time_ratios)
-        yield_ratios = np.hstack(yield_ratios)
-
-        df = pd.DataFrame.from_records({
-            "size": repeated_sizes,
-            "yield_ratio": yield_ratios,
-            "time_ratio": time_ratios
-        })
-
+        moments_df = pd.concat(moments)
         fig = px.line(
-            df, color="size", markers=True,
+            moments_df, color="size", markers=True,
             x="time_ratio", y="yield_ratio"
         )
         fig.update_layout(
@@ -608,6 +610,9 @@ size with percentage of yield vs. percentage of time taken
                 "tickformat": ",.1%"
             }
         )
+        fig.add_hline(y=DEFAULT_THRESHOLD, line_dash="dash",
+                      annotation_text=f"{DEFAULT_THRESHOLD:.0%}",
+                      annotation_position="bottom right")
         fig.show()
 
 if __name__ == "__main__":
