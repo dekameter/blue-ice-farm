@@ -14,15 +14,17 @@ For the sake of analysis, I've developed three distinct modes based on open-ende
 
 The default mode simulates ice formation in the farm until a given yield threshold is met. The threshold is a percentage represented by the range 0.0 to 1.0 (aka. 0% to 100%). Based on data collected through this script, the default threshold was chosen to be 0.95 (95%) (see [`--moments` mode](#moments-mode) for more details).
 
-Default mode collects the number of Minecraft ticks it takes to reach the yield threshold. The following data is saved to the given output path: `{size},{minimum ticks},{maximum ticks},{average ticks},{median ticks}`
+Default mode collects the number of Minecraft ticks it takes to reach the yield threshold. The following data is saved to the given output path:
+`{farm size},{threshold},{effective yield,{yield},{time (in ticks)}`
 
 ### Center Reached Mode
 
 ![A top-down, terminal-based representation of a Minecraft ice farm forming from the borders toward the center. The generation stops once the center has been reached by a path.](https://dekameter.github.io/img/ice_farm_center.gif)
 
-The `--center` mode still follows the same ice generation rules. However, once any ice has reached the center, the generation stops. Since the threshold parameter makes no sense here, the threshold is ignored. Originally this was explored as an alternative strategy to determine when to clear out the ice farm
+The `--center` mode still follows the same ice generation rules. However, once any ice has reached the center, the generation stops. Originally this was explored as an alternative strategy to determine when to clear out the ice farm
 
-Unlike the default generation, the center reaching mode records how much of the ice farm has been filled as a percentage (0.0 to 1.0). The following data is saved to the given output path: `{size},{minimum yield %},{maximum yield %},{average yield %},{median yield %}`
+Unlike the default generation, the center reaching mode records how much of the ice farm has been filled as a percentage (0.0 to 1.0). Since the threshold parameter makes no sense here, the threshold is ignored. The following data is saved to the given output path:
+`{farm size},{effective yield},{yield},{yield ratio},{time (in ticks)}`
 
 ### Moments Mode
 
@@ -32,4 +34,5 @@ The `--moment` mode also keeps the same Minecraft generation logic, but instead 
 
 As shown in the plot above, the farm reaches near full capacity sooner the larger the farm size is. Anecdotally, it seems that as the farm size tends toward infinity, the farm will be roughly 95% full by around 60% of the time it takes to fill the entire plot. _That means 40% of the time would be wasted to generate a measely 5%!_
 
-Since this mode is more concerned with tracking every moment of change, the threshold defaults to 1.0 (100%).
+Since this mode is more concerned with tracking every moment of change, the threshold defaults to 1.0 (100%). The following data is saved to the given output path:
+`{farm size},{threshold},{effective yield},{yield},{yield ratio},{total time (in ticks)},{time (in ticks)},{time ratio}`
