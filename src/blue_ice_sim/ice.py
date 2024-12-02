@@ -358,12 +358,15 @@ class Screen:
         os.system("cls" if os.name == "nt" else "clear")
 
 
-def simulate_generation(size: int, threshold: float = 1.0) -> int:
-    """Simulates standard ice farm generation until the threshold * effective yield is met.
+def simulate_generation(size: int, threshold: float = 1.0) -> tuple[int, int, int]:
+    """Simulates standard ice farm generation until the threshold *
+    effective yield is met.
 
     :param size: The size of the ice farm in one-dimension
-    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults to 1.0
-    :return: The number of ticks it took to reach the threshold
+    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults
+    to 1.0
+    :return: A tuple consisting of (effective yield, yield, time (in
+    ticks))
     """
     farm = IceFarm(size)
     eff_yield = farm.eff_yield
@@ -373,15 +376,16 @@ def simulate_generation(size: int, threshold: float = 1.0) -> int:
         ticks += 1
         farm.update()
 
-    return ticks
+    return eff_yield, farm.count, ticks
 
 
-def simulate_center(size: int) -> float:
-    """Simulates the ice farm generation until the center is reached by one of the adjacent ice
-    blocks.
+def simulate_center(size: int) -> tuple[int, int, int]:
+    """Simulates the ice farm generation until the center is reached by
+    one of the adjacent ice blocks.
 
     :param size: The size of the ice farm in one-dimension
-    :return: The frozen block count / the effective yield
+    :return: A tuple consisting of (effective yield, yield, time (in
+    ticks))
     """
     farm = IceFarm(size)
     ticks = 0
@@ -391,18 +395,21 @@ def simulate_center(size: int) -> float:
         farm.update()
 
         if farm.is_center_reached:
-            return farm.count / farm.eff_yield
+            break
 
-    return farm.count / farm.eff_yield
+    return farm.eff_yield, farm.count, ticks
 
 
 def simulate_moments(size: int, threshold: float = 1.0) -> pd.DataFrame:
-    """Simulates ice generation to where it tracks every moment new ice is formed in # of ticks
+    """Simulates ice generation to where it tracks every moment new ice
+    is formed in # of ticks
 
     :param size: The size of the ice farm in one-dimension
-    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults to 1.0
-    :return: A Pandas DataFrame consisting of farm size ["size"], effective yield ["eff_yield"],
-    yield ["yield"], total time (in ticks) ["total_time"], time percentage ["time_ratio"] 
+    :param threshold: The threshold to stop at from 0.0 to 1.0, defaults
+    to 1.0
+    :return: A Pandas DataFrame consisting of effective yield
+    ["eff_yield"], yield ["yield"], total time (in ticks)
+    ["total_time"], time (in ticks) ["time"]
     """
     farm = IceFarm(size)
     ticks = 0
@@ -422,11 +429,10 @@ def simulate_moments(size: int, threshold: float = 1.0) -> pd.DataFrame:
             times.append(ticks)
 
     return pd.DataFrame({
-        "size": size,
         "eff_yield": farm.eff_yield,
         "yield": yields,
         "total_time": ticks,
-        "time_ratio": [t / ticks for t in times]
+        "time": times
     })
 
 CHUNK_SIZE = 16
@@ -552,61 +558,98 @@ size with percentage of yield vs. percentage of time taken
 
     if out_path:
         out_path.unlink(True)
-        out_path.touch()
+        if center_mode:
+            header = "size,eff_yield,yield,yield_ratio,time"
+        elif moment_mode:
+            header = ("size,threshold,eff_yield,yield,yield_ratio"
+                      ",total_time,time,time_ratio")
+        else:
+            header = "size,threshold,eff_yield,yield,time"
+
+        out_path.write_text(f"{header}\n")
 
     for size in sizes:
         if center_mode:
+            runs = []
+
             with multiprocessing.Pool() as pool:
-                runs = []
                 for run in pool.imap_unordered(simulate_center, repeat(size, run_count)):
                     runs.append(run)
                     screen.update(size)
 
-            # Print the field size, min, max, average, and median yield percentage
-            data = (
-                f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
-                f",{list(sorted(runs))[len(runs) // 2]}"
-            )
-            screen.status = data
-            screen.refresh(size)
-            if out_path is not None:
-                with out_path.open("a") as fd:
-                    fd.write(f"{data}\n")
-        elif moment_mode:
-            with multiprocessing.Pool() as pool:
-                runs = []
+            df = pd.DataFrame.from_records(runs, columns=["eff_yield", "yield", "time"])
+            df["size"] = size
+            df["yield_ratio"] = df["yield"] / df["eff_yield"]
 
+            if out_path:
+                df.to_csv(
+                    out_path, mode="a", index=False, header=False,
+                    columns=["size", "eff_yield", "yield", "yield_ratio", "time"]
+                )
+
+            # Print the field size, min, max, average, and median yield ratio
+            screen.status = (
+                f"{size},{df["yield_ratio"].min()},{df["yield_ratio"].max()}"
+                f",{df["yield_ratio"].mean()},{df["yield_ratio"].median()}"
+            )
+            screen.refresh(size)
+        elif moment_mode:
+            runs = []
+
+            with multiprocessing.Pool() as pool:
                 for run in pool.imap_unordered(
                         functools.partial(simulate_moments, size),
                         repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
 
-                df = pd.concat(runs)
-                sub_moments_df = df.groupby(
-                    by=["size", "yield"], group_keys=True).mean().reset_index()
-                sub_moments_df["yield_ratio"] = (sub_moments_df["yield"] /
-                                                 sub_moments_df["eff_yield"])
-                moments.append(sub_moments_df)
+            df = pd.concat(runs)
+
+            df["size"] = size
+            df["threshold"] = threshold
+            df["yield_ratio"] = df["yield"] / df["eff_yield"]
+            df["time_ratio"] = df["time"] / df["total_time"]
+
+            if out_path:
+                df.to_csv(
+                    out_path, mode="a", index=False, header=False,
+                    columns=["size", "threshold", "eff_yield", "yield", "yield_ratio",
+                             "total_time", "time", "time_ratio"]
+                )
+
+            df = df.groupby(
+                by=["size", "yield_ratio"],
+                group_keys=True)[["time_ratio"]].mean().reset_index()
+
+            moments.append(df)
         else:
+            runs = []
+
             with multiprocessing.Pool() as pool:
-                runs = []
                 for run in pool.imap_unordered(
                         functools.partial(simulate_generation, size),
                         repeat(threshold, run_count)):
                     runs.append(run)
                     screen.update(size)
 
+            df = pd.DataFrame.from_records(runs, columns=["eff_yield", "yield", "time"])
+
+            df["size"] = size
+            df["threshold"] = threshold
+            df["yield_ratio"] = df["yield"] / df["eff_yield"]
+
+            if out_path:
+                df.to_csv(
+                    out_path, mode="a", index=False, header=False,
+                    columns=["size", "threshold", "eff_yield", "yield", "yield_ratio", "time"]
+                )
+
             # Print the field size, min, max, average, and median tick runtime
-            data = (
-                f"{size},{min(runs)},{max(runs)},{sum(runs) / len(runs)}"
-                f",{list(sorted(runs))[len(runs) // 2]}"
+            screen.status = (
+                f"{size},{df["time"].min()},{df["time"].max()},{df["time"].mean()}"
+                f",{df["time"].median()}"
             )
-            screen.status = data
             screen.refresh(size)
-            if out_path is not None:
-                with out_path.open("a") as fd:
-                    fd.write(f"{data}\n")
 
     if moment_mode:
         moments_df = pd.concat(moments)
