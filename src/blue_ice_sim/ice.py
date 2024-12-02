@@ -13,7 +13,6 @@ from itertools import product, repeat
 from pathlib import Path
 from typing import Self
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 
